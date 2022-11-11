@@ -1,4 +1,4 @@
-module github.com/frmo24042/P2P-DISYS
+module github.com/frederikgantriis/P2P-DISYS
 
 go 1.19
 
