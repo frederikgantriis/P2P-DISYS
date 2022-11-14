@@ -14,19 +14,16 @@ import (
 	"google.golang.org/grpc"
 )
 
-var lamport int32
-
 func main() {
 	arg1, _ := strconv.ParseInt(os.Args[1], 10, 32)
 	ownPort := int32(arg1) + 5000
-	lamport = 0
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	p := &peer{
 		id:            ownPort,
-		Lamport:       lamport,
+		Lamport:       0,
 		amountOfPings: make(map[int32]int32),
 		clients:       make(map[int32]ping.PingClient),
 		ctx:           ctx,
@@ -83,24 +80,29 @@ func (p *peer) Ping(ctx context.Context, req *ping.Request) (*ping.Reply, error)
 	id := req.Id
 	p.amountOfPings[id] += 1
 
-	rep := &ping.Reply{Amount: p.amountOfPings[id]}
+	p.Lamport = setLamportTimestamp(int(p.Lamport), int(req.Lamport))
+	fmt.Println(p.Lamport)
+
+	rep := &ping.Reply{Amount: p.amountOfPings[id], Lamport: p.Lamport}
 	return rep, nil
 }
 
 func (p *peer) sendPingToAll() {
-	lamport++
+	p.Lamport++
 	request := &ping.Request{Id: p.id, Lamport: p.Lamport}
 	for id, client := range p.clients {
 		reply, err := client.Ping(p.ctx, request)
 		if err != nil {
 			fmt.Println("something went wrong")
 		}
+		fmt.Println(reply.Lamport)
+
 		fmt.Printf("Got reply from id %v: %v\n", id, reply.Amount)
 	}
 }
 
-func setLamportTimestamp(incoming int) {
-	lamport = int32(math.Max(float64(lamport), float64(incoming)) + 1)
+func setLamportTimestamp(current int, incoming int) int32 {
+	return int32(math.Max(float64(current), float64(incoming)) + 1)
 }
 
 func criticalSection() {
