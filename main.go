@@ -26,7 +26,7 @@ func main() {
 
 	p := &peer{
 		id:            ownPort,
-		lamport:       lamport,
+		Lamport:       lamport,
 		amountOfPings: make(map[int32]int32),
 		clients:       make(map[int32]ping.PingClient),
 		ctx:           ctx,
@@ -73,7 +73,7 @@ func main() {
 type peer struct {
 	ping.UnimplementedPingServer
 	id            int32
-	lamport       int32
+	Lamport       int32
 	amountOfPings map[int32]int32
 	clients       map[int32]ping.PingClient
 	ctx           context.Context
@@ -89,7 +89,7 @@ func (p *peer) Ping(ctx context.Context, req *ping.Request) (*ping.Reply, error)
 
 func (p *peer) sendPingToAll() {
 	lamport++
-	request := &ping.Request{Id: p.id, lamport: p.lamport}
+	request := &ping.Request{Id: p.id, Lamport: p.Lamport}
 	for id, client := range p.clients {
 		reply, err := client.Ping(p.ctx, request)
 		if err != nil {
