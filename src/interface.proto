@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package ping;
-option go_package = "https://github.com/frmo24042/P2P-DISYS;ping";
+package p2p;
+option go_package = "https://github.com/frederikgantriis/P2P-DISYS;p2p";
 
-
-service Ping {
-    rpc ping (Request) returns (Reply) {}
+// Request access to critical section
+service ReqAccessToCS {
+    rpc reqAccessToCS (Request) returns (Reply) {}
 }
 
 message Request {
@@ -14,5 +14,5 @@ message Request {
 }
 
 message Reply {
-    int32 amount = 1;
+    int32 lamport = 2;
 }
