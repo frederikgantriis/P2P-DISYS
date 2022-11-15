@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"net"
@@ -17,9 +18,67 @@ import (
 var lamport int32
 
 func main() {
-	arg1, _ := strconv.ParseInt(os.Args[1], 10, 32)
-	ownPort := int32(arg1) + 5000
 	lamport = 0
+	var ownPort int32
+
+	// Creating/reading text file
+	var f *os.File
+	var err error
+
+	// Open or create ports.txt file
+	f, err = os.OpenFile("ressources/ports.txt", os.O_RDWR, 0x0666)
+	if err != nil {
+		err = nil
+		f, err = os.Create("ressources/ports.txt")
+		defer deletePortFile()
+		if err != nil {
+			log.Println(err)
+			log.Fatalf("Could not read nor create port file")
+		}
+	}
+
+	// Read all ports from text file and add to slice
+	const maxSz = 5
+	b := make([]byte, maxSz)
+	portStrings := []string{}
+	for {
+		// read content to buffer
+		readTotal, err := f.Read(b)
+		if err != nil {
+			if err != io.EOF {
+				fmt.Println(err)
+			}
+			break
+		}
+		fmt.Println("I read this port: " + string(b[:readTotal-1])) // print content from buffer
+		portStrings = append(portStrings, string(b[:readTotal-1]))
+	}
+
+	// Print the ports read
+	for _, str := range portStrings {
+		fmt.Println("Saved port: " + str)
+	}
+
+	// Convert port strings to int32's
+	ports := []int32{}
+	for _, portString := range portStrings {
+		if len(portStrings) > 0 {
+			port, err := strconv.Atoi(portString)
+			ports = append(ports, int32(port))
+			if err != nil {
+				log.Fatalf("Could not convert last port to int: %s", portString)
+			}
+		}
+	}
+	if len(ports) == 0 {
+		ownPort = int32(5000)
+	} else {
+		ownPort = int32(ports[len(ports)-1] + 1)
+	}
+	log.Printf("My port is: %d\n", ownPort)
+	f.WriteString(fmt.Sprint(ownPort) + "\n")
+	f.Close()
+	log.Println("Wrote to and closed file")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -46,26 +105,26 @@ func main() {
 		}
 	}()
 
-	for i := 0; i < 3; i++ {
-		port := int32(5000) + int32(i)
-
-		if port == ownPort {
-			continue
+	go func() {
+		for _, port := range ports {
+			var conn *grpc.ClientConn
+			fmt.Printf("Trying to dial: %v\n", port)
+			conn, err := grpc.Dial(fmt.Sprintf(":%v", port), grpc.WithInsecure(), grpc.WithBlock())
+			if err != nil {
+				log.Fatalf("Could not connect: %s", err)
+			}
+			defer conn.Close()
+			c := ping.NewPingClient(conn)
+			p.clients[port] = c
+			log.Printf("Connected to port: %d\n", port)
 		}
-
-		var conn *grpc.ClientConn
-		fmt.Printf("Trying to dial: %v\n", port)
-		conn, err := grpc.Dial(fmt.Sprintf(":%v", port), grpc.WithInsecure(), grpc.WithBlock())
-		if err != nil {
-			log.Fatalf("Could not connect: %s", err)
-		}
-		defer conn.Close()
-		c := ping.NewPingClient(conn)
-		p.clients[port] = c
-	}
+	}()
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
+		if scanner.Text() == "-q" {
+			break
+		}
 		p.sendPingToAll()
 	}
 }
@@ -89,7 +148,7 @@ func (p *peer) Ping(ctx context.Context, req *ping.Request) (*ping.Reply, error)
 
 func (p *peer) sendPingToAll() {
 	lamport++
-	request := &ping.Request{Id: p.id, lamport: p.lamport}
+	request := &ping.Request{Id: p.id, Lamport: p.lamport}
 	for id, client := range p.clients {
 		reply, err := client.Ping(p.ctx, request)
 		if err != nil {
@@ -105,4 +164,8 @@ func setLamportTimestamp(incoming int) {
 
 func criticalSection() {
 	fmt.Println("A Critical Hello World")
+}
+
+func deletePortFile() {
+	os.Remove("ressources/ports.txt")
 }
