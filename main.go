@@ -10,23 +10,22 @@ import (
 	"os"
 	"strconv"
 
-	ping "github.com/frederikgantriis/P2P-DISYS/src"
+	p2p "github.com/frederikgantriis/P2P-DISYS/src"
 	"google.golang.org/grpc"
 )
 
 func main() {
 	arg1, _ := strconv.ParseInt(os.Args[1], 10, 32)
-	ownPort := int32(arg1) + 5000
+	ownPort := int32(arg1) + 3000
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	p := &peer{
-		id:            ownPort,
-		Lamport:       0,
-		amountOfPings: make(map[int32]int32),
-		clients:       make(map[int32]ping.PingClient),
-		ctx:           ctx,
+		id:      ownPort,
+		Lamport: 0,
+		clients: make(map[int32]p2p.ReqAccessToCSClient),
+		ctx:     ctx,
 	}
 
 	// Create listener tcp on port ownPort
@@ -35,7 +34,7 @@ func main() {
 		log.Fatalf("Failed to listen on port: %v", err)
 	}
 	grpcServer := grpc.NewServer()
-	ping.RegisterPingServer(grpcServer, p)
+	p2p.RegisterReqAccessToCSServer(grpcServer, p)
 
 	go func() {
 		if err := grpcServer.Serve(list); err != nil {
@@ -44,7 +43,7 @@ func main() {
 	}()
 
 	for i := 0; i < 3; i++ {
-		port := int32(5000) + int32(i)
+		port := int32(3000) + int32(i)
 
 		if port == ownPort {
 			continue
@@ -57,52 +56,52 @@ func main() {
 			log.Fatalf("Could not connect: %s", err)
 		}
 		defer conn.Close()
-		c := ping.NewPingClient(conn)
+		c := p2p.NewReqAccessToCSClient(conn)
 		p.clients[port] = c
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
-		p.sendPingToAll()
+		p.sendReqAccessToCSToAll()
 	}
 }
 
 type peer struct {
-	ping.UnimplementedPingServer
-	id            int32
-	Lamport       int32
-	amountOfPings map[int32]int32
-	clients       map[int32]ping.PingClient
-	ctx           context.Context
+	p2p.UnimplementedReqAccessToCSServer
+	id      int32
+	Lamport int32
+	clients map[int32]p2p.ReqAccessToCSClient
+	ctx     context.Context
 }
 
-func (p *peer) Ping(ctx context.Context, req *ping.Request) (*ping.Reply, error) {
-	id := req.Id
-	p.amountOfPings[id] += 1
+// type State int32
 
-	p.Lamport = setLamportTimestamp(int(p.Lamport), int(req.Lamport))
-	fmt.Println(p.Lamport)
+// const (
+// 	RELEASED State = 0
+// 	WANTED   State = 1
+// 	HELD     State = 1
+// )
 
-	rep := &ping.Reply{Amount: p.amountOfPings[id], Lamport: p.Lamport}
+func (p *peer) ReqAccessToCSToAll(ctx context.Context, req *p2p.Request) (*p2p.Reply, error) {
+	rep := &p2p.Reply{Lamport: p.Lamport, Id: p.id}
 	return rep, nil
 }
 
-func (p *peer) sendPingToAll() {
+func (p *peer) sendReqAccessToCSToAll() {
 	p.Lamport++
-	request := &ping.Request{Id: p.id, Lamport: p.Lamport}
-	for id, client := range p.clients {
-		reply, err := client.Ping(p.ctx, request)
-		if err != nil {
-			fmt.Println("something went wrong")
-		}
-		fmt.Println(reply.Lamport)
+	request := &p2p.Request{Id: p.id, Lamport: p.Lamport}
 
-		fmt.Printf("Got reply from id %v: %v\n", id, reply.Amount)
+	for id, client := range p.clients {
+		reply, err := client.ReqAccessToCS(p.ctx, request)
+		if err != nil {
+			fmt.Println("something went wrong: ", err)
+		}
+		fmt.Printf("Got reply from id %v: %v\n", id, reply.Lamport)
 	}
 }
 
-func setLamportTimestamp(current int, incoming int) int32 {
-	return int32(math.Max(float64(current), float64(incoming)) + 1)
+func setLamportTimestamp(p *peer, incoming int) {
+	p.Lamport = int32(math.Max(float64(p.Lamport), float64(incoming)) + 1)
 }
 
 func criticalSection() {
