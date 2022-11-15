@@ -187,11 +187,7 @@ func (p *peer) sendReqAccessToCSToAll() {
 	for id, client := range p.clients {
 		reply, err := client.ReqAccessToCS(p.ctx, request)
 		if err != nil {
-			fmt.Println("something went wrong: ", err)
 			delete(p.clients, id)
-			_ports := getPortsExcept(id)
-			deletePortFile()
-			CreateAndWritePortsToFile(_ports)
 			continue
 		}
 		fmt.Printf("Got reply from id %v: %v\n", id, reply.Lamport)
