@@ -74,6 +74,14 @@ type peer struct {
 	ctx     context.Context
 }
 
+// type State int32
+
+// const (
+// 	RELEASED State = 0
+// 	WANTED   State = 1
+// 	HELD     State = 1
+// )
+
 func (p *peer) ReqAccessToCS(ctx context.Context, req *p2p.Request) (*p2p.Reply, error) {
 	rep := &p2p.Reply{Lamport: p.Lamport}
 	setLamportTimestamp(p, int(rep.Lamport))
