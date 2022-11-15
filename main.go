@@ -83,7 +83,7 @@ type peer struct {
 // )
 
 func (p *peer) ReqAccessToCSToAll(ctx context.Context, req *p2p.Request) (*p2p.Reply, error) {
-	rep := &p2p.Reply{Lamport: p.Lamport, Id: p.id}
+	rep := &p2p.Reply{Lamport: p.Lamport}
 	return rep, nil
 }
 
