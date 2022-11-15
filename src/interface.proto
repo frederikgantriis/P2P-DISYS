@@ -14,5 +14,5 @@ message Request {
 }
 
 message Reply {
-    int32 lamport = 2;
+    int32 lamport = 1;
 }
