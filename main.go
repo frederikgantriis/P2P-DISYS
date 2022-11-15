@@ -21,6 +21,12 @@ func main() {
 	var f *os.File
 	var err error
 
+	// Check if ressources folder exists
+	_, ferr := os.Stat("ressources")
+	if os.IsNotExist(ferr) {
+		os.Mkdir("ressources", os.ModePerm)
+	}
+
 	// Open or create ports.txt file
 	f, err = os.OpenFile("ressources/ports.txt", os.O_RDWR, 0x0666)
 	if err != nil {
