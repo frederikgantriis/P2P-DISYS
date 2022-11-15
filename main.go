@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"time"
 
 	p2p "github.com/frederikgantriis/P2P-DISYS/src"
 	"google.golang.org/grpc"
@@ -23,7 +24,8 @@ func main() {
 
 	p := &peer{
 		id:      ownPort,
-		Lamport: 0,
+		lamport: 0,
+		state:   State(RELEASED),
 		clients: make(map[int32]p2p.ReqAccessToCSClient),
 		ctx:     ctx,
 	}
@@ -69,28 +71,35 @@ func main() {
 type peer struct {
 	p2p.UnimplementedReqAccessToCSServer
 	id      int32
-	Lamport int32
+	state   State
+	lamport int32
 	clients map[int32]p2p.ReqAccessToCSClient
 	ctx     context.Context
 }
 
-// type State int32
+type State int32
 
-// const (
-// 	RELEASED State = 0
-// 	WANTED   State = 1
-// 	HELD     State = 1
-// )
+const (
+	RELEASED State = 0
+	WANTED   State = 1
+	HELD     State = 2
+)
 
 func (p *peer) ReqAccessToCS(ctx context.Context, req *p2p.Request) (*p2p.Reply, error) {
-	rep := &p2p.Reply{Lamport: p.Lamport}
+	for p.state == State(HELD) || (p.state == State(WANTED) && (p.lamport < req.Lamport || (p.lamport == req.Lamport && p.id < req.Id))) {
+		continue
+	}
+	rep := &p2p.Reply{Lamport: p.lamport}
 	setLamportTimestamp(p, int(rep.Lamport))
 	return rep, nil
 }
 
 func (p *peer) sendReqAccessToCSToAll() {
-	p.Lamport++
-	request := &p2p.Request{Id: p.id, Lamport: p.Lamport}
+	p.lamport++
+	p.state = State(WANTED)
+	fmt.Printf("peer; %v, wants access to critical section \n", p.id)
+
+	request := &p2p.Request{Id: p.id, Lamport: p.lamport}
 
 	for id, client := range p.clients {
 		reply, err := client.ReqAccessToCS(p.ctx, request)
@@ -99,12 +108,19 @@ func (p *peer) sendReqAccessToCSToAll() {
 		}
 		fmt.Printf("Got reply from id %v: %v\n", id, reply.Lamport)
 	}
+
+	p.state = State(HELD)
+	fmt.Printf("peer; %v, has gained access to the critical section\n", p.id)
+	criticalSection(p)
+	p.state = State(RELEASED)
+	fmt.Printf("peer; %v, has released access to the critical section\n", p.id)
 }
 
 func setLamportTimestamp(p *peer, incoming int) {
-	p.Lamport = int32(math.Max(float64(p.Lamport), float64(incoming)) + 1)
+	p.lamport = int32(math.Max(float64(p.lamport), float64(incoming)) + 1)
 }
 
-func criticalSection() {
-	fmt.Println("A Critical Hello World")
+func criticalSection(p *peer) {
+	fmt.Printf("A Critical Hello World from %v\n", p.id)
+	time.Sleep(3 * time.Second)
 }
