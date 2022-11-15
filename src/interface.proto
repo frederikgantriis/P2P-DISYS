@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package p2p;
-option go_package = "https://github.com/frmo24042/P2P-DISYS;p2p";
+option go_package = "https://github.com/frederikgantriis/P2P-DISYS;p2p";
 
 // Request access to critical section
 service ReqAccessToCS {
